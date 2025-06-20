@@ -51,7 +51,6 @@ for key, default in {
 
 # --- Load Data ---
 case_data = decrypt_file(ENCRYPTED_PATH, DECRYPTION_KEY)
-
 retriever = EncryptedAnswerRetriever(
     encrypted_index_path=FAISS_INDEX_PATH,
     encrypted_meta_path=FAISS_META_PATH,
@@ -139,20 +138,19 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
-# --- Clear previous question input fields ---
-text_key = f"text_answer_{question_id}"
-transcript_key = f"transcript_edit_{question_id}"
-for key in [text_key, transcript_key]:
-    if key in st.session_state:
-        del st.session_state[key]
-
 # --- Input Method ---
 input_method = st.radio("Choose input method:", ["Text", "Voice"])
 user_input = ""
 
+# --- Text Input ---
 if input_method == "Text":
-    user_input = st.text_area("Write your answer here:", height=200, key=text_key)
+    prev_key = f"submitted_answer_{case_id}_{question_id}"
+    if prev_key in st.session_state:
+        st.markdown("**Your previous answer:**")
+        st.info(st.session_state[prev_key])
+    user_input = st.text_area("Write your new answer below:", key=f"new_input_{case_id}_{question_id}", height=200)
 
+# --- Audio Input ---
 else:
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
     audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
@@ -160,7 +158,7 @@ else:
         with st.spinner("Transcribing..."):
             try:
                 user_input = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.text_area("Transcript (edit if needed)", value=user_input, height=200, key=transcript_key)
+                st.text_area("Transcript (edit if needed):", value=user_input, key=f"transcript_q{question_id}", height=200)
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
                 st.stop()
@@ -168,7 +166,7 @@ else:
         st.info("Please record or upload an audio file.")
         st.stop()
 
-# --- Submit Answer ---
+# --- Submit ---
 if st.button("Submit Answer") and user_input.strip():
     with st.spinner("Submitting..."):
         try:
@@ -206,6 +204,7 @@ if st.button("Submit Answer") and user_input.strip():
                 feedback.strip()
             ])
 
+            st.session_state[f"submitted_answer_{case_id}_{question_id}"] = user_input.strip()
             st.session_state.submitted_questions.append(question_id)
             st.session_state.current_question += 1
             st.success("Submitted!")
