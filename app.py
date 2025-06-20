@@ -36,19 +36,18 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["AnswerStorage_Sheet_ID"]).sheet1
 
-# --- Session State ---
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "submitted_questions" not in st.session_state:
-    st.session_state.submitted_questions = []
-if "current_question" not in st.session_state:
-    st.session_state.current_question = 0
-if "user_name" not in st.session_state:
-    st.session_state.user_name = ""
-if "user_email" not in st.session_state:
-    st.session_state.user_email = ""
-if "details_submitted" not in st.session_state:
-    st.session_state.details_submitted = False
+# --- Session State Init ---
+for key, default in {
+    "authenticated": False,
+    "submitted_questions": [],
+    "current_question": 0,
+    "user_name": "",
+    "user_email": "",
+    "details_submitted": False,
+    "audio_submitted": False
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # --- Load Data ---
 case_data = decrypt_file(ENCRYPTED_PATH, DECRYPTION_KEY)
@@ -62,7 +61,7 @@ retriever = EncryptedAnswerRetriever(
 # --- UI Title ---
 st.title("Case Interview Submission")
 
-# --- Authentication Gate ---
+# --- Authentication ---
 if not st.session_state.authenticated:
     password = st.text_input("Enter access password", type="password")
     if st.button("Submit Password"):
@@ -74,7 +73,7 @@ if not st.session_state.authenticated:
             st.stop()
     st.stop()
 
-# --- After Auth Only ---
+# --- Welcome ---
 st.markdown("""
 ### How It Works
 
@@ -85,7 +84,7 @@ Once you've completed all questions, your responses will be reviewed by an **ex-
 **You’ll receive personalized written feedback within 48 hours via email.**
 """)
 
-# --- User Details ---
+# --- User Info ---
 if not st.session_state.details_submitted:
     st.subheader("Your Details")
     name = st.text_input("Your name")
@@ -104,10 +103,9 @@ if not st.session_state.details_submitted:
         st.session_state.user_email = email
         st.session_state.details_submitted = True
         st.rerun()
-
     st.stop()
 
-# --- Select Case with Button Grid ---
+# --- Case Selection ---
 if "selected_case_id" not in st.session_state:
     st.subheader("Choose a Case")
     case_ids = sorted(case_data.keys())
@@ -116,7 +114,7 @@ if "selected_case_id" not in st.session_state:
     for i, cid in enumerate(case_ids):
         case_title = case_data[cid]["case_title"]
         with cols[i % 3]:
-            if st.button(f"Start: {case_title}", key=f"casebtn_{cid}"):
+            if st.button(f"{case_title}", key=f"casebtn_{cid}"):
                 st.session_state.selected_case_id = cid
                 st.rerun()
     st.stop()
@@ -131,7 +129,7 @@ if st.session_state.current_question >= len(questions):
     st.success("You have completed all questions. Thank you!")
     st.stop()
 
-# --- Show Case Text ---
+# --- Show Case Info ---
 st.markdown(f"### Case: {case['case_title']}")
 st.markdown(case["case_text"])
 
@@ -141,9 +139,14 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
+# --- Clear previous inputs ---
+user_input = ""
+if "transcript_edit" in st.session_state:
+    del st.session_state["transcript_edit"]
+st.session_state.audio_submitted = False
+
 # --- Input Method ---
 input_method = st.radio("Choose input method:", ["Text", "Voice"])
-user_input = ""
 
 if input_method == "Text":
     user_input = st.text_area("Write your answer here:", height=200)
@@ -163,7 +166,7 @@ else:
         st.info("Please record or upload an audio file.")
         st.stop()
 
-# --- Submit Button ---
+# --- Submit Answer ---
 if st.button("Submit Answer") and user_input.strip():
     with st.spinner("Submitting..."):
         try:
@@ -203,7 +206,6 @@ if st.button("Submit Answer") and user_input.strip():
 
             st.session_state.submitted_questions.append(question_id)
             st.session_state.current_question += 1
-            st.success("Submitted!")
             st.rerun()
 
         except Exception as e:
