@@ -139,6 +139,12 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
+# --- Reset user input if moving to new question ---
+current_q_key = f"{case_id}_{question_id}"
+if st.session_state.get("last_question_key") != current_q_key:
+    st.session_state["new_user_input"] = ""
+    st.session_state["last_question_key"] = current_q_key
+
 # --- Display Previous Answer ---
 prev_key = f"submitted_answer_{case_id}_{question_id}"
 if prev_key in st.session_state:
