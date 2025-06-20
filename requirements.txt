@@ -1,0 +1,9 @@
+streamlit
+requests
+gspread
+oauth2client
+sentence-transformers
+faiss-cpu
+cryptography
+numpy
+openpyxl
