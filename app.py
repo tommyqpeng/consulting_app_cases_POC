@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Case interview app with voice/text input, feedback generation,
-and FAISS-based retrieval of historical examples.
+Case interview submission app with FAISS retrieval, DeepSeek feedback, and Google Sheet logging.
 """
 
 import streamlit as st
 import gspread
 import json
 import re
+import uuid
 from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
 from util_functions import (
@@ -117,7 +117,7 @@ questions = list(case["questions"].items())
 
 # --- All Questions Completed ---
 if st.session_state.current_question >= len(questions):
-    st.success("✅ You have completed all questions. Thank you!")
+    st.success("You have completed all questions. Thank you!")
     st.stop()
 
 # --- Show Case Text ---
@@ -176,20 +176,23 @@ if st.button("Submit Answer") and user_input.strip():
 
             feedback = generate_feedback(prompt, case["system_role"], DEEPSEEK_API_KEY)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            submission_id = str(uuid.uuid4())
 
             sheet.append_row([
+                submission_id,
                 timestamp,
                 st.session_state.user_name,
                 st.session_state.user_email,
                 case_id,
                 question_id,
                 user_input.strip(),
+                prompt.strip(),
                 feedback.strip()
             ])
 
             st.session_state.submitted_questions.append(question_id)
             st.session_state.current_question += 1
-            st.success("✅ Submitted!")
+            st.success("Submitted!")
             st.rerun()
 
         except Exception as e:
