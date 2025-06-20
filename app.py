@@ -51,6 +51,7 @@ for key, default in {
 
 # --- Load Data ---
 case_data = decrypt_file(ENCRYPTED_PATH, DECRYPTION_KEY)
+
 retriever = EncryptedAnswerRetriever(
     encrypted_index_path=FAISS_INDEX_PATH,
     encrypted_meta_path=FAISS_META_PATH,
@@ -138,27 +139,27 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
+# --- Display Previous Answer ---
+prev_key = f"submitted_answer_{case_id}_{question_id}"
+if prev_key in st.session_state:
+    st.markdown("**Your previous answer:**")
+    st.markdown(f"> {st.session_state[prev_key]}")
+
 # --- Input Method ---
 input_method = st.radio("Choose input method:", ["Text", "Voice"])
-user_input = ""
+st.session_state.audio_submitted = False
 
-# --- Text Input ---
 if input_method == "Text":
-    prev_key = f"submitted_answer_{case_id}_{question_id}"
-    if prev_key in st.session_state:
-        st.markdown("**Your previous answer:**")
-        st.info(st.session_state[prev_key])
-    user_input = st.text_area("Write your new answer below:", key=f"new_input_{case_id}_{question_id}", height=200)
-
-# --- Audio Input ---
+    st.text_area("Your new answer:", key="new_user_input", height=200)
 else:
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
     audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
     if audio_bytes:
         with st.spinner("Transcribing..."):
             try:
-                user_input = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.text_area("Transcript (edit if needed):", value=user_input, key=f"transcript_q{question_id}", height=200)
+                transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
+                st.session_state.new_user_input = transcript
+                st.text_area("Transcript (edit if needed)", value=transcript, height=200, key="new_user_input")
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
                 st.stop()
@@ -167,7 +168,12 @@ else:
         st.stop()
 
 # --- Submit ---
-if st.button("Submit Answer") and user_input.strip():
+if st.button("Submit Answer"):
+    user_input = st.session_state.get("new_user_input", "").strip()
+    if not user_input:
+        st.warning("Please enter a response before submitting.")
+        st.stop()
+
     with st.spinner("Submitting..."):
         try:
             examples = retriever.get_nearest_neighbors(
@@ -199,12 +205,12 @@ if st.button("Submit Answer") and user_input.strip():
                 st.session_state.user_email,
                 case_id,
                 question_id,
-                user_input.strip(),
+                user_input,
                 prompt.strip(),
                 feedback.strip()
             ])
 
-            st.session_state[f"submitted_answer_{case_id}_{question_id}"] = user_input.strip()
+            st.session_state[prev_key] = user_input
             st.session_state.submitted_questions.append(question_id)
             st.session_state.current_question += 1
             st.success("Submitted!")
