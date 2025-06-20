@@ -47,6 +47,8 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 if "user_email" not in st.session_state:
     st.session_state.user_email = ""
+if "details_submitted" not in st.session_state:
+    st.session_state.details_submitted = False
 
 # --- Load Data ---
 case_data = decrypt_file(ENCRYPTED_PATH, DECRYPTION_KEY)
@@ -84,18 +86,26 @@ Once you've completed all questions, your responses will be reviewed by an **ex-
 """)
 
 # --- User Details ---
-if not st.session_state.user_name or not st.session_state.user_email:
+if not st.session_state.details_submitted:
     st.subheader("Your Details")
-    st.session_state.user_name = st.text_input("Your name")
-    st.session_state.user_email = st.text_input("Your email address")
+    name = st.text_input("Your name")
+    email = st.text_input("Your email address")
     email_pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
 
-    if not st.session_state.user_name or not st.session_state.user_email:
-        st.info("Please enter your name and email to continue.")
-        st.stop()
-    if not re.match(email_pattern, st.session_state.user_email):
-        st.warning("Please enter a valid email address.")
-        st.stop()
+    if st.button("Continue"):
+        if not name or not email:
+            st.warning("Please enter your name and email.")
+            st.stop()
+        if not re.match(email_pattern, email):
+            st.warning("Please enter a valid email address.")
+            st.stop()
+
+        st.session_state.user_name = name
+        st.session_state.user_email = email
+        st.session_state.details_submitted = True
+        st.rerun()
+
+    st.stop()
 
 # --- Select Case with Button Grid ---
 if "selected_case_id" not in st.session_state:
