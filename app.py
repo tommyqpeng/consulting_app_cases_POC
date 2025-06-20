@@ -60,7 +60,7 @@ retriever = EncryptedAnswerRetriever(
 # --- UI Title ---
 st.title("Case Interview Submission")
 
-# --- Password Authentication ---
+# --- Authentication Gate ---
 if not st.session_state.authenticated:
     password = st.text_input("Enter access password", type="password")
     if st.button("Submit Password"):
@@ -70,8 +70,9 @@ if not st.session_state.authenticated:
         else:
             st.warning("Incorrect password.")
             st.stop()
+    st.stop()
 
-# --- Welcome Message and Email Info ---
+# --- After Auth Only ---
 st.markdown("""
 ### How It Works
 
@@ -82,7 +83,7 @@ Once you've completed all questions, your responses will be reviewed by an **ex-
 **You’ll receive personalized written feedback within 48 hours via email.**
 """)
 
-# --- Name and Email ---
+# --- User Details ---
 if not st.session_state.user_name or not st.session_state.user_email:
     st.subheader("Your Details")
     st.session_state.user_name = st.text_input("Your name")
