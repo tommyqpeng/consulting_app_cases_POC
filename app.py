@@ -190,7 +190,7 @@ if st.button("Submit Answer"):
             )
 
             if not examples:
-                st.info("No relevant past examples found — feedback will be based solely on your response.")
+                st.info("Thank you for your response.")
 
             prompt = build_prompt(
                 question_text=question_obj["question_text"],
