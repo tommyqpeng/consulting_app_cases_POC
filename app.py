@@ -139,17 +139,19 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
-# --- Clear previous inputs ---
-user_input = ""
-if "transcript_edit" in st.session_state:
-    del st.session_state["transcript_edit"]
-st.session_state.audio_submitted = False
+# --- Clear previous question input fields ---
+text_key = f"text_answer_{question_id}"
+transcript_key = f"transcript_edit_{question_id}"
+for key in [text_key, transcript_key]:
+    if key in st.session_state:
+        del st.session_state[key]
 
 # --- Input Method ---
 input_method = st.radio("Choose input method:", ["Text", "Voice"])
+user_input = ""
 
 if input_method == "Text":
-    user_input = st.text_area("Write your answer here:", height=200)
+    user_input = st.text_area("Write your answer here:", height=200, key=text_key)
 
 else:
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
@@ -158,7 +160,7 @@ else:
         with st.spinner("Transcribing..."):
             try:
                 user_input = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.text_area("Transcript (edit if needed)", value=user_input, height=200, key="transcript_edit")
+                st.text_area("Transcript (edit if needed)", value=user_input, height=200, key=transcript_key)
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
                 st.stop()
@@ -206,6 +208,7 @@ if st.button("Submit Answer") and user_input.strip():
 
             st.session_state.submitted_questions.append(question_id)
             st.session_state.current_question += 1
+            st.success("Submitted!")
             st.rerun()
 
         except Exception as e:
