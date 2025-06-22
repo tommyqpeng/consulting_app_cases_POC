@@ -148,8 +148,8 @@ if st.session_state.current_question >= len(questions):
 st.markdown(f"### Case: {case['case_title']}")
 st.markdown(case["case_text"])
 
-# --- Iterate Over Questions ---
-for q_index in range(len(questions)):
+# --- Display Questions Incrementally ---
+for q_index in range(st.session_state.current_question + 1):
     question_id, question_obj = questions[q_index]
     st.markdown("---")
     st.markdown(f"#### Question {question_id}")
@@ -159,7 +159,7 @@ for q_index in range(len(questions)):
     if prev_key in st.session_state:
         st.markdown("**Your previous answer:**")
         st.markdown(f"> {st.session_state[prev_key]}")
-        continue  # Don't show input box or submit button again
+        continue
 
     input_method = st.session_state.selected_input_method
     user_input = ""
