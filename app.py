@@ -37,21 +37,24 @@ client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["AnswerStorage_Sheet_ID"]).sheet1
 
 # --- Session State Init ---
-for key, default in {
-    "submitted_questions": [],
-    "current_question": 0,
-    "user_name": "",
-    "user_email": "",
-    "details_submitted": False,
-    "input_method_chosen": False,
-    "selected_input_method": None
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
+def init_session_state():
+    defaults = {
+        "submitted_questions": [],
+        "current_question": 0,
+        "user_name": "",
+        "user_email": "",
+        "details_submitted": False,
+        "input_method_chosen": False,
+        "selected_input_method": None
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+init_session_state()
 
 # --- Load Data ---
 case_data = decrypt_file(ENCRYPTED_PATH, DECRYPTION_KEY)
-
 retriever = EncryptedAnswerRetriever(
     encrypted_index_path=FAISS_INDEX_PATH,
     encrypted_meta_path=FAISS_META_PATH,
@@ -145,90 +148,87 @@ if st.session_state.current_question >= len(questions):
 st.markdown(f"### Case: {case['case_title']}")
 st.markdown(case["case_text"])
 
-# --- Current Question ---
-question_id, question_obj = questions[st.session_state.current_question]
-st.markdown("---")
-st.markdown(f"#### Question {question_id}")
-render_question_with_images(question_obj["question_text"], image_dir="images")
+# --- Iterate Over Questions ---
+for q_index in range(len(questions)):
+    question_id, question_obj = questions[q_index]
+    st.markdown("---")
+    st.markdown(f"#### Question {question_id}")
+    render_question_with_images(question_obj["question_text"], image_dir="images")
 
-# --- Display Previous Answer ---
-prev_key = f"submitted_answer_{case_id}_{question_id}"
-if prev_key in st.session_state:
-    st.markdown("**Your previous answer:**")
-    st.markdown(f"> {st.session_state[prev_key]}")
+    prev_key = f"submitted_answer_{case_id}_{question_id}"
+    if prev_key in st.session_state:
+        st.markdown("**Your previous answer:**")
+        st.markdown(f"> {st.session_state[prev_key]}")
+        continue  # Don't show input box or submit button again
 
-# --- Input Area ---
-input_method = st.session_state.selected_input_method
-user_input = ""
+    input_method = st.session_state.selected_input_method
+    user_input = ""
 
-if input_method == "Text":
-    input_key = f"input_text_{case_id}_{question_id}_{uuid.uuid4()}"
-    user_input = st.text_area("Your new answer:", height=200, key=input_key)
+    if input_method == "Text":
+        user_input = st.text_area("Your answer:", height=200, key=f"text_{case_id}_{question_id}")
 
-elif input_method == "Voice":
-    uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
-    audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
-    if audio_bytes:
-        with st.spinner("Transcribing..."):
+    elif input_method == "Voice":
+        uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
+        audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
+        if audio_bytes:
+            with st.spinner("Transcribing..."):
+                try:
+                    transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
+                    user_input = st.text_area("Transcript (edit if needed):", value=transcript, height=200, key=f"voice_{case_id}_{question_id}")
+                except Exception as e:
+                    st.error(f"Transcription failed: {e}")
+                    st.stop()
+        else:
+            st.info("Please record or upload an audio file.")
+            st.stop()
+
+    if st.button("Submit Answer", key=f"submit_{case_id}_{question_id}"):
+        user_input = user_input.strip()
+        if not user_input:
+            st.warning("Please enter a response before submitting.")
+            st.stop()
+
+        with st.spinner("Submitting..."):
             try:
-                transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.session_state[f"audio_input_{case_id}_{question_id}"] = transcript
-                user_input = st.text_area("Transcript (edit if needed)", value=transcript, height=200)
+                examples = retriever.get_nearest_neighbors(
+                    query=user_input,
+                    case_id=case_id,
+                    question_id=question_id,
+                    n=3
+                )
+
+                if not examples:
+                    st.info("No relevant past examples found — feedback will be based solely on your response.")
+
+                prompt = build_prompt(
+                    question_text=question_obj["question_text"],
+                    rubric=question_obj["rubric"],
+                    examples=examples,
+                    user_input=user_input,
+                    generation_instructions=question_obj["generation_instructions"]
+                )
+
+                feedback = generate_feedback(prompt, case["system_role"], DEEPSEEK_API_KEY)
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                submission_id = str(uuid.uuid4())
+
+                sheet.append_row([
+                    submission_id,
+                    timestamp,
+                    st.session_state.user_name,
+                    st.session_state.user_email,
+                    case_id,
+                    question_id,
+                    user_input,
+                    prompt.strip(),
+                    feedback.strip()
+                ])
+
+                st.session_state[prev_key] = user_input
+                st.session_state.submitted_questions.append(question_id)
+                st.session_state.current_question += 1
+                st.success("Submitted!")
+                st.rerun()
+
             except Exception as e:
-                st.error(f"Transcription failed: {e}")
-                st.stop()
-    else:
-        st.info("Please record or upload an audio file.")
-        st.stop()
-
-# --- Submit ---
-if st.button("Submit Answer"):
-    user_input = user_input.strip()
-    if not user_input:
-        st.warning("Please enter a response before submitting.")
-        st.stop()
-
-    with st.spinner("Submitting..."):
-        try:
-            examples = retriever.get_nearest_neighbors(
-                query=user_input,
-                case_id=case_id,
-                question_id=question_id,
-                n=3
-            )
-
-            if not examples:
-                st.info("No relevant past examples found — feedback will be based solely on your response.")
-
-            prompt = build_prompt(
-                question_text=question_obj["question_text"],
-                rubric=question_obj["rubric"],
-                examples=examples,
-                user_input=user_input,
-                generation_instructions=question_obj["generation_instructions"]
-            )
-
-            feedback = generate_feedback(prompt, case["system_role"], DEEPSEEK_API_KEY)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            submission_id = str(uuid.uuid4())
-
-            sheet.append_row([
-                submission_id,
-                timestamp,
-                st.session_state.user_name,
-                st.session_state.user_email,
-                case_id,
-                question_id,
-                user_input,
-                prompt.strip(),
-                feedback.strip()
-            ])
-
-            st.session_state[prev_key] = user_input
-            st.session_state.submitted_questions.append(question_id)
-            st.session_state.current_question += 1
-            st.success("Submitted!")
-            st.rerun()
-
-        except Exception as e:
-            st.error(f"Submission failed: {e}")
+                st.error(f"Submission failed: {e}")
