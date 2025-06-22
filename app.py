@@ -27,7 +27,7 @@ DEEPGRAM_API_KEY = st.secrets["DEEPGRAM_API_KEY"]
 ENCRYPTED_PATH = "case_questions.json.encrypted"
 FAISS_INDEX_PATH = "faiss_index.encrypted"
 FAISS_META_PATH = "metadata.encrypted"
-CASE_PASSWORDS = st.secrets["CASE_PASSWORDS"]
+CASE_PASSWORDS = json.loads(st.secrets["CASE_PASSWORDS"])  # Expects a dict {"case_id": "password"}
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -104,7 +104,7 @@ if "selected_case_id" not in st.session_state:
         with cols[i % 3]:
             if st.button(f"{case_title}", key=f"casebtn_{cid}"):
                 st.session_state.selected_case_id = cid
-                st.session_state.input_method_chosen = False  # reset input method choice
+                st.session_state.input_method_chosen = False
                 st.rerun()
     st.stop()
 
@@ -150,11 +150,6 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
-# --- Clear any prior response each time ---
-user_input_key = f"user_input_{case_id}_{question_id}"
-if user_input_key in st.session_state:
-    del st.session_state[user_input_key]
-
 # --- Display Previous Answer ---
 prev_key = f"submitted_answer_{case_id}_{question_id}"
 if prev_key in st.session_state:
@@ -163,17 +158,19 @@ if prev_key in st.session_state:
 
 # --- Input Area ---
 input_method = st.session_state.selected_input_method
+user_input = ""
+
 if input_method == "Text":
-    st.text_area("Your new answer:", key=user_input_key, height=200)
-else:
+    user_input = st.text_area("Your new answer:", height=200)
+
+elif input_method == "Voice":
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
     audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
     if audio_bytes:
         with st.spinner("Transcribing..."):
             try:
                 transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.session_state[user_input_key] = transcript
-                st.text_area("Transcript (edit if needed)", value=transcript, height=200, key=user_input_key)
+                user_input = st.text_area("Transcript (edit if needed)", value=transcript, height=200)
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
                 st.stop()
@@ -183,7 +180,7 @@ else:
 
 # --- Submit ---
 if st.button("Submit Answer"):
-    user_input = st.session_state.get(user_input_key, "").strip()
+    user_input = user_input.strip()
     if not user_input:
         st.warning("Please enter a response before submitting.")
         st.stop()
