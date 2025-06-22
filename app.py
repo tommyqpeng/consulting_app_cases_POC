@@ -19,6 +19,9 @@ from util_functions import (
 )
 from faiss_lookup import EncryptedAnswerRetriever
 from st_audiorec import st_audiorec
+import tempfile
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 
 # --- Config and Secrets ---
 DEEPSEEK_API_KEY = st.secrets["DEEPSEEK_API_KEY"]
@@ -35,6 +38,8 @@ creds_dict = json.loads(st.secrets["GSHEET_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["AnswerStorage_Sheet_ID"]).sheet1
+
+drive_service = build("drive", "v3", credentials=creds)
 
 # --- Session State Init ---
 def init_session_state():
@@ -164,6 +169,7 @@ for q_index in range(st.session_state.current_question + 1):
 
     input_method = st.session_state.selected_input_method
     user_input = ""
+    audio_bytes = None
 
     if input_method == "Text":
         user_input = st.text_area("Your answer:", height=200, key=f"text_{case_id}_{question_id}")
@@ -178,6 +184,16 @@ for q_index in range(st.session_state.current_question + 1):
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
         if audio_bytes:
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+                    tmp_file.write(audio_bytes)
+                    tmp_file.flush()
+                    drive_file_metadata = {
+                        'name': f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
+                        'parents': [st.secrets["DriveFolderID"]]
+                    }
+                    media = MediaIoBaseUpload(tmp_file, mimetype='audio/wav')
+                    drive_service.files().create(body=drive_file_metadata, media_body=media, fields='id').execute()
+
                 with st.spinner("Transcribing and submitting..."):
                     try:
                         user_input = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY).strip()
