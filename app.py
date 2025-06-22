@@ -19,7 +19,6 @@ from util_functions import (
 )
 from faiss_lookup import EncryptedAnswerRetriever
 import tempfile
-from pydub import AudioSegment
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -182,9 +181,9 @@ for q_index in range(st.session_state.current_question + 1):
         audio_file = st.audio_input("Record your answer:", key=f"audio_{case_id}_{question_id}")
         if audio_file:
             audio_bytes = audio_file.read()
-            audio_segment = AudioSegment.from_file_using_temporary_files(audio_bytes)
-            temp_filepath = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name
-            audio_segment.export(temp_filepath, format="mp3")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+                tmp_file.write(audio_bytes)
+                temp_filepath = tmp_file.name
 
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
                 filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
