@@ -18,7 +18,6 @@ from util_functions import (
     render_question_with_images
 )
 from faiss_lookup import EncryptedAnswerRetriever
-from st_audiorec import st_audiorec
 import tempfile
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -133,6 +132,7 @@ if f"authenticated_{case_id}" not in st.session_state:
 # --- Ask for Input Method at Start of Case ---
 if not st.session_state.input_method_chosen:
     st.subheader("Choose How You Will Answer Questions")
+    st.markdown("You will only get **one chance per question** to answer.")
     st.session_state.selected_input_method = st.radio("Input Method:", ["Text", "Voice"])
     if st.button("Start Case"):
         st.session_state.input_method_chosen = True
@@ -178,10 +178,9 @@ for q_index in range(st.session_state.current_question + 1):
                 st.stop()
 
     elif input_method == "Voice":
-        uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
-        audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
-
-        if audio_bytes:
+        audio_file = st.audio_input("Record your answer:", key=f"audio_{case_id}_{question_id}")
+        if audio_file:
+            audio_bytes = audio_file.read()
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
                 filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
