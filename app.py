@@ -180,6 +180,7 @@ for q_index in range(st.session_state.current_question + 1):
     elif input_method == "Voice":
         uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
+
         if audio_bytes:
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
                 filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
@@ -213,7 +214,7 @@ for q_index in range(st.session_state.current_question + 1):
                 )
 
                 if not examples:
-                    st.info("Good Work!")
+                    st.info("No relevant past examples found — feedback will be based solely on your response.")
 
                 prompt = build_prompt(
                     question_text=question_obj["question_text"],
