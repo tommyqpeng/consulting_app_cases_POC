@@ -133,7 +133,6 @@ if f"authenticated_{case_id}" not in st.session_state:
 # --- Ask for Input Method at Start of Case ---
 if not st.session_state.input_method_chosen:
     st.subheader("Choose How You Will Answer Questions")
-    st.markdown("You will only get **one chance per question** to answer.")
     st.session_state.selected_input_method = st.radio("Input Method:", ["Text", "Voice"])
     if st.button("Start Case"):
         st.session_state.input_method_chosen = True
