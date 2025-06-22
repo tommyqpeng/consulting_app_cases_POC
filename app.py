@@ -179,7 +179,8 @@ for q_index in range(st.session_state.current_question + 1):
                 st.stop()
 
     elif input_method == "Voice":
-        is_mobile = "iPhone" in st.user_agent or "iOS" in st.user_agent
+        user_agent = st.request_headers.get("User-Agent", "")
+        is_mobile = "iPhone" in user_agent or "iOS" in user_agent
         if is_mobile:
             st.markdown("""
             **🎙️ iPhone Users – Read This First:**
