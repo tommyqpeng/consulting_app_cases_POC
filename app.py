@@ -38,7 +38,6 @@ creds_dict = json.loads(st.secrets["GSHEET_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(st.secrets["AnswerStorage_Sheet_ID"]).sheet1
-
 drive_service = build("drive", "v3", credentials=creds)
 
 # --- Session State Init ---
@@ -180,6 +179,19 @@ for q_index in range(st.session_state.current_question + 1):
                 st.stop()
 
     elif input_method == "Voice":
+        is_mobile = "iPhone" in st.user_agent or "iOS" in st.user_agent
+        if is_mobile:
+            st.markdown("""
+            **🎙️ iPhone Users – Read This First:**
+            
+            - You can **upload** `.m4a` or `.wav` audio files recorded using the iPhone **Voice Memos** app.
+            - After recording in Voice Memos:
+              1. Tap the recording.
+              2. Tap the **three dots** (...) → **Share** → **Save to Files**.
+              3. Then return here and use the **Upload** button below.
+            - Alternatively, use the **record button below** if you are on desktop.
+            """)
+
         uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
         if audio_bytes:
