@@ -182,7 +182,9 @@ for q_index in range(st.session_state.current_question + 1):
         if f"voice_{case_id}_{question_id}" in st.session_state:
             del st.session_state[f"voice_{case_id}_{question_id}"]
         if transcript_key in st.session_state and st.session_state[transcript_key]:
-            user_input = st.text_area("Transcript (edit if needed):", value=st.session_state[transcript_key], height=200, key=f"voice_{case_id}_{question_id}")
+            user_input = st.session_state[transcript_key]
+            st.markdown("**Transcript:**")
+            st.markdown(f"> {user_input}")
         else:
             user_input = ""
 
