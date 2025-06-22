@@ -105,6 +105,7 @@ if "selected_case_id" not in st.session_state:
             if st.button(f"{case_title}", key=f"casebtn_{cid}"):
                 st.session_state.selected_case_id = cid
                 st.session_state.input_method_chosen = False
+                st.session_state.current_question = 0
                 st.rerun()
     st.stop()
 
@@ -161,7 +162,8 @@ input_method = st.session_state.selected_input_method
 user_input = ""
 
 if input_method == "Text":
-    user_input = st.text_area("Your new answer:", height=200)
+    input_key = f"input_text_{case_id}_{question_id}_{uuid.uuid4()}"
+    user_input = st.text_area("Your new answer:", height=200, key=input_key)
 
 elif input_method == "Voice":
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
@@ -170,6 +172,7 @@ elif input_method == "Voice":
         with st.spinner("Transcribing..."):
             try:
                 transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
+                st.session_state[f"audio_input_{case_id}_{question_id}"] = transcript
                 user_input = st.text_area("Transcript (edit if needed)", value=transcript, height=200)
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
