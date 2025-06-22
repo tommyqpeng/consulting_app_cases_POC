@@ -27,7 +27,7 @@ DEEPGRAM_API_KEY = st.secrets["DEEPGRAM_API_KEY"]
 ENCRYPTED_PATH = "case_questions.json.encrypted"
 FAISS_INDEX_PATH = "faiss_index.encrypted"
 FAISS_META_PATH = "metadata.encrypted"
-CASE_PASSWORDS = json.loads(st.secrets["CASE_PASSWORDS"])  # Expects a dict {"case_id": "password"}
+CASE_PASSWORDS = st.secrets["CASE_PASSWORDS"]
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
