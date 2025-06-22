@@ -179,11 +179,12 @@ for q_index in range(st.session_state.current_question + 1):
                 except Exception as e:
                     st.error(f"Transcription failed: {e}")
                     st.stop()
+        if f"voice_{case_id}_{question_id}" in st.session_state:
+            del st.session_state[f"voice_{case_id}_{question_id}"]
         if transcript_key in st.session_state and st.session_state[transcript_key]:
             user_input = st.text_area("Transcript (edit if needed):", value=st.session_state[transcript_key], height=200, key=f"voice_{case_id}_{question_id}")
         else:
-            st.info("Please record or upload an audio file.")
-            st.stop()
+            user_input = ""
 
     if st.button("Submit Answer", key=f"submit_{case_id}_{question_id}"):
         user_input = user_input.strip()
@@ -231,6 +232,8 @@ for q_index in range(st.session_state.current_question + 1):
                 st.session_state[prev_key] = user_input
                 if transcript_key in st.session_state:
                     del st.session_state[transcript_key]
+                if f"voice_{case_id}_{question_id}" in st.session_state:
+                    del st.session_state[f"voice_{case_id}_{question_id}"]
 
                 st.session_state.submitted_questions.append(question_id)
                 st.session_state.current_question += 1
