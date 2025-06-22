@@ -21,13 +21,13 @@ from faiss_lookup import EncryptedAnswerRetriever
 from st_audiorec import st_audiorec
 
 # --- Config and Secrets ---
-APP_PASSWORD = st.secrets["APP_PASSWORD"]
 DEEPSEEK_API_KEY = st.secrets["DEEPSEEK_API_KEY"]
 DECRYPTION_KEY = st.secrets["DECRYPTION_KEY"].encode()
 DEEPGRAM_API_KEY = st.secrets["DEEPGRAM_API_KEY"]
 ENCRYPTED_PATH = "case_questions.json.encrypted"
 FAISS_INDEX_PATH = "faiss_index.encrypted"
 FAISS_META_PATH = "metadata.encrypted"
+CASE_PASSWORDS = json.loads(st.secrets["CASE_PASSWORDS"])  # Expects a dict {"case_id": "password"}
 
 # --- Google Sheets Setup ---
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -38,13 +38,13 @@ sheet = client.open_by_key(st.secrets["AnswerStorage_Sheet_ID"]).sheet1
 
 # --- Session State Init ---
 for key, default in {
-    "authenticated": False,
     "submitted_questions": [],
     "current_question": 0,
     "user_name": "",
     "user_email": "",
     "details_submitted": False,
-    "audio_submitted": False
+    "input_method_chosen": False,
+    "selected_input_method": None
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -60,18 +60,6 @@ retriever = EncryptedAnswerRetriever(
 
 # --- UI Title ---
 st.title("Case Interview Submission")
-
-# --- Authentication ---
-if not st.session_state.authenticated:
-    password = st.text_input("Enter access password", type="password")
-    if st.button("Submit Password"):
-        if password == APP_PASSWORD:
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.warning("Incorrect password.")
-            st.stop()
-    st.stop()
 
 # --- Welcome ---
 st.markdown("""
@@ -116,11 +104,34 @@ if "selected_case_id" not in st.session_state:
         with cols[i % 3]:
             if st.button(f"{case_title}", key=f"casebtn_{cid}"):
                 st.session_state.selected_case_id = cid
+                st.session_state.input_method_chosen = False  # reset input method choice
                 st.rerun()
     st.stop()
 
-# --- Active Case ---
+# --- Case Password ---
 case_id = st.session_state.selected_case_id
+if f"authenticated_{case_id}" not in st.session_state:
+    st.subheader("Enter Case Password")
+    case_password = st.text_input("Password for this case", type="password")
+    if st.button("Unlock Case"):
+        if CASE_PASSWORDS.get(case_id) == case_password:
+            st.session_state[f"authenticated_{case_id}"] = True
+            st.rerun()
+        else:
+            st.warning("Incorrect password for this case.")
+            st.stop()
+    st.stop()
+
+# --- Ask for Input Method at Start of Case ---
+if not st.session_state.input_method_chosen:
+    st.subheader("Choose How You Will Answer Questions")
+    st.session_state.selected_input_method = st.radio("Input Method:", ["Text", "Voice"])
+    if st.button("Start Case"):
+        st.session_state.input_method_chosen = True
+        st.rerun()
+    st.stop()
+
+# --- Active Case ---
 case = case_data[case_id]
 questions = list(case["questions"].items())
 
@@ -139,11 +150,10 @@ st.markdown("---")
 st.markdown(f"#### Question {question_id}")
 render_question_with_images(question_obj["question_text"], image_dir="images")
 
-# --- Reset user input if moving to new question ---
-current_q_key = f"{case_id}_{question_id}"
-if st.session_state.get("last_question_key") != current_q_key:
-    st.session_state["new_user_input"] = ""
-    st.session_state["last_question_key"] = current_q_key
+# --- Clear any prior response each time ---
+user_input_key = f"user_input_{case_id}_{question_id}"
+if user_input_key in st.session_state:
+    del st.session_state[user_input_key]
 
 # --- Display Previous Answer ---
 prev_key = f"submitted_answer_{case_id}_{question_id}"
@@ -151,12 +161,10 @@ if prev_key in st.session_state:
     st.markdown("**Your previous answer:**")
     st.markdown(f"> {st.session_state[prev_key]}")
 
-# --- Input Method ---
-input_method = st.radio("Choose input method:", ["Text", "Voice"])
-st.session_state.audio_submitted = False
-
+# --- Input Area ---
+input_method = st.session_state.selected_input_method
 if input_method == "Text":
-    st.text_area("Your new answer:", key="new_user_input", height=200)
+    st.text_area("Your new answer:", key=user_input_key, height=200)
 else:
     uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"])
     audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
@@ -164,8 +172,8 @@ else:
         with st.spinner("Transcribing..."):
             try:
                 transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                st.session_state.new_user_input = transcript
-                st.text_area("Transcript (edit if needed)", value=transcript, height=200, key="new_user_input")
+                st.session_state[user_input_key] = transcript
+                st.text_area("Transcript (edit if needed)", value=transcript, height=200, key=user_input_key)
             except Exception as e:
                 st.error(f"Transcription failed: {e}")
                 st.stop()
@@ -175,7 +183,7 @@ else:
 
 # --- Submit ---
 if st.button("Submit Answer"):
-    user_input = st.session_state.get("new_user_input", "").strip()
+    user_input = st.session_state.get(user_input_key, "").strip()
     if not user_input:
         st.warning("Please enter a response before submitting.")
         st.stop()
@@ -190,7 +198,7 @@ if st.button("Submit Answer"):
             )
 
             if not examples:
-                st.info("Thank you for your response.")
+                st.info("No relevant past examples found — feedback will be based solely on your response.")
 
             prompt = build_prompt(
                 question_text=question_obj["question_text"],
