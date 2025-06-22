@@ -183,13 +183,13 @@ for q_index in range(st.session_state.current_question + 1):
         if audio_file:
             audio_bytes = audio_file.read()
             audio_segment = AudioSegment.from_file_using_temporary_files(audio_bytes)
-            temp_filepath = tempfile.NamedTemporaryFile(delete=False, suffix=".m4a").name
-            audio_segment.export(temp_filepath, format="ipod")
+            temp_filepath = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name
+            audio_segment.export(temp_filepath, format="mp3")
 
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
-                filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.m4a"
+                filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp3"
                 with open(temp_filepath, "rb") as f:
-                    media = MediaIoBaseUpload(f, mimetype="audio/mp4")
+                    media = MediaIoBaseUpload(f, mimetype="audio/mpeg")
                     drive_file_metadata = {
                         "name": filename,
                         "parents": [st.secrets["DriveFolderID"]],
