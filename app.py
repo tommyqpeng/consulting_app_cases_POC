@@ -184,15 +184,18 @@ for q_index in range(st.session_state.current_question + 1):
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
         if audio_bytes:
             if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
+                filename = f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
                     tmp_file.write(audio_bytes)
-                    tmp_file.flush()
+                    temp_filepath = tmp_file.name
+
+                with open(temp_filepath, "rb") as audio_file:
+                    media = MediaIoBaseUpload(audio_file, mimetype="audio/wav")
                     drive_file_metadata = {
-                        'name': f"{st.session_state.user_name}_{case_id}_{question_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav",
-                        'parents': [st.secrets["DriveFolderID"]]
+                        "name": filename,
+                        "parents": [st.secrets["DriveFolderID"]],
                     }
-                    media = MediaIoBaseUpload(tmp_file, mimetype='audio/wav')
-                    drive_service.files().create(body=drive_file_metadata, media_body=media, fields='id').execute()
+                    drive_service.files().create(body=drive_file_metadata, media_body=media, fields="id").execute()
 
                 with st.spinner("Transcribing and submitting..."):
                     try:
