@@ -198,7 +198,7 @@ for q_index in range(st.session_state.current_question + 1):
                 )
 
                 if not examples:
-                    st.info("No relevant past examples found — feedback will be based solely on your response.")
+                    st.info("Good work.")
 
                 prompt = build_prompt(
                     question_text=question_obj["question_text"],
@@ -221,7 +221,8 @@ for q_index in range(st.session_state.current_question + 1):
                     question_id,
                     user_input,
                     prompt.strip(),
-                    feedback.strip()
+                    feedback.strip(),
+                    input_method
                 ])
 
                 st.session_state[prev_key] = user_input
