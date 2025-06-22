@@ -156,6 +156,7 @@ for q_index in range(st.session_state.current_question + 1):
     render_question_with_images(question_obj["question_text"], image_dir="images")
 
     prev_key = f"submitted_answer_{case_id}_{question_id}"
+    transcript_key = f"transcript_{case_id}_{question_id}"
     if prev_key in st.session_state:
         st.markdown("**Your previous answer:**")
         st.markdown(f"> {st.session_state[prev_key]}")
@@ -168,7 +169,6 @@ for q_index in range(st.session_state.current_question + 1):
         user_input = st.text_area("Your answer:", height=200, key=f"text_{case_id}_{question_id}")
 
     elif input_method == "Voice":
-        transcript_key = f"transcript_{case_id}_{question_id}"
         uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
         if audio_bytes:
@@ -179,7 +179,7 @@ for q_index in range(st.session_state.current_question + 1):
                 except Exception as e:
                     st.error(f"Transcription failed: {e}")
                     st.stop()
-        if transcript_key in st.session_state:
+        if transcript_key in st.session_state and st.session_state[transcript_key]:
             user_input = st.text_area("Transcript (edit if needed):", value=st.session_state[transcript_key], height=200, key=f"voice_{case_id}_{question_id}")
         else:
             st.info("Please record or upload an audio file.")
@@ -229,6 +229,9 @@ for q_index in range(st.session_state.current_question + 1):
                 ])
 
                 st.session_state[prev_key] = user_input
+                if transcript_key in st.session_state:
+                    del st.session_state[transcript_key]
+
                 st.session_state.submitted_questions.append(question_id)
                 st.session_state.current_question += 1
                 st.success("Submitted!")
