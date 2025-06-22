@@ -129,6 +129,7 @@ if f"authenticated_{case_id}" not in st.session_state:
 # --- Ask for Input Method at Start of Case ---
 if not st.session_state.input_method_chosen:
     st.subheader("Choose How You Will Answer Questions")
+    st.markdown("You will only get **one chance per question** to answer.")
     st.session_state.selected_input_method = st.radio("Input Method:", ["Text", "Voice"])
     if st.button("Start Case"):
         st.session_state.input_method_chosen = True
@@ -156,7 +157,6 @@ for q_index in range(st.session_state.current_question + 1):
     render_question_with_images(question_obj["question_text"], image_dir="images")
 
     prev_key = f"submitted_answer_{case_id}_{question_id}"
-    transcript_key = f"transcript_{case_id}_{question_id}"
     if prev_key in st.session_state:
         st.markdown("**Your previous answer:**")
         st.markdown(f"> {st.session_state[prev_key]}")
@@ -167,34 +167,26 @@ for q_index in range(st.session_state.current_question + 1):
 
     if input_method == "Text":
         user_input = st.text_area("Your answer:", height=200, key=f"text_{case_id}_{question_id}")
+        if st.button("Submit Answer", key=f"submit_{case_id}_{question_id}"):
+            user_input = user_input.strip()
+            if not user_input:
+                st.warning("Please enter a response before submitting.")
+                st.stop()
 
     elif input_method == "Voice":
         uploaded_file = st.file_uploader("Upload .wav or .m4a file", type=["wav", "m4a"], key=f"upload_{case_id}_{question_id}")
         audio_bytes = st_audiorec() or (uploaded_file.read() if uploaded_file else None)
         if audio_bytes:
-            with st.spinner("Transcribing..."):
-                try:
-                    transcript = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY)
-                    st.session_state[transcript_key] = transcript
-                except Exception as e:
-                    st.error(f"Transcription failed: {e}")
-                    st.stop()
-        if f"voice_{case_id}_{question_id}" in st.session_state:
-            del st.session_state[f"voice_{case_id}_{question_id}"]
-        if transcript_key in st.session_state and st.session_state[transcript_key]:
-            user_input = st.session_state[transcript_key]
-            st.markdown("**Transcript:**")
-            st.markdown(f"> {user_input}")
-        else:
-            user_input = ""
+            if st.button("Submit Recording", key=f"submit_{case_id}_{question_id}"):
+                with st.spinner("Transcribing and submitting..."):
+                    try:
+                        user_input = transcribe_audio(audio_bytes, DEEPGRAM_API_KEY).strip()
+                    except Exception as e:
+                        st.error(f"Transcription failed: {e}")
+                        st.stop()
 
-    if st.button("Submit Answer", key=f"submit_{case_id}_{question_id}"):
-        user_input = user_input.strip()
-        if not user_input:
-            st.warning("Please enter a response before submitting.")
-            st.stop()
-
-        with st.spinner("Submitting..."):
+    if user_input:
+        with st.spinner("Submitting answer..."):
             try:
                 examples = retriever.get_nearest_neighbors(
                     query=user_input,
@@ -232,11 +224,6 @@ for q_index in range(st.session_state.current_question + 1):
                 ])
 
                 st.session_state[prev_key] = user_input
-                if transcript_key in st.session_state:
-                    del st.session_state[transcript_key]
-                if f"voice_{case_id}_{question_id}" in st.session_state:
-                    del st.session_state[f"voice_{case_id}_{question_id}"]
-
                 st.session_state.submitted_questions.append(question_id)
                 st.session_state.current_question += 1
                 st.success("Submitted!")
